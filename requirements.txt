@@ -1,0 +1,7 @@
+numpy
+pandas
+joblib
+pyyaml
+tqdm
+matplotlib
+tables

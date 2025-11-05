@@ -1,0 +1,33 @@
+# Configuration for the synthetic RV data generator
+
+# --- Batch Simulation Settings ---
+n_simulations: 10000
+output_dir: 'simulation_results' # Directory to save the output files
+
+# --- General Simulation Settings ---
+time_span: [0, 100]          # The start and end time of observations in days.
+time_cadence_sec: 300        # The time between observations in seconds.
+n_jobs: -1                   # Number of CPU cores for parallel processing (-1 means all).
+
+# --- Planet Generation Settings ---
+n_planets_range: [1, 5]      # The min and max number of planets to simulate.
+
+# Orbital period
+p_range: [1, 100]            # Min/max in days.
+p_scale: 'log'               # 'log' to better cover the dynamic range (Jeffreys prior).
+
+# RV semi-amplitude
+k_range: [0.1, 100]          # Min/max in m/s.
+k_scale: 'log'               # 'log' to better cover the dynamic range (Jeffreys prior).
+
+# Eccentricity
+e_range: [0.01, 0.5]
+e_scale: 'linear'
+
+# Argument of periastron (use float for 2*pi, approx 6.2832)
+omega_range: [0, 6.2831853]  # Min/max in radians.
+omega_scale: 'linear'
+
+# --- Noise Settings (Jitter) ---
+jitter_range: [0.1, 5.0]     # Min/max for Gaussian noise in m/s.
+jitter_scale: 'linear'
