@@ -1,4 +1,4 @@
-# Synthetic RV Data Generator
+# inject_recovery_keplerian: Synthetic RV Data Generator
 
 This project generates synthetic radial velocity (RV) datasets for multi-planet systems. It is designed to create large, configurable batches of simulations for use in injection-recovery tests, model training, or statistical analysis.
 
@@ -35,8 +35,8 @@ This project requires the following Python libraries. They are listed in the `re
 ### 2. Installation
 Clone the repository and install the required packages using pip:
 ```bash
-git clone <your-repo-url>
-cd <your-repo-name>
+git clone https://github.com/Go-Spect/inject_recovery_keplerian
+cd inject_recovery_keplerian
 pip install -r requirements.txt
 ```
 
