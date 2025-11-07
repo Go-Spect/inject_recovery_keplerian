@@ -64,7 +64,7 @@ def main():
                 store.put(key, df)
 
         logging.info(f"Saving planet parameters to: {params_path}")
-        all_params_df.to_csv(params_path)
+        all_params_df.to_csv(params_path, index=False)
         logging.info("All data saved successfully.")
 
         # --- Post-processing and Verification ---
@@ -75,11 +75,11 @@ def main():
         visualize_corner_plot(params_path, run_output_dir, corner_params)
 
         n_mosaic = config.get('n_rv_mosaic_examples', 9)
-        visualize_rv_mosaic(n_mosaic, run_output_dir)
+        visualize_rv_mosaic(n_mosaic, run_output_dir) # Pass the correct run directory
 
         logging.info("\n--- Example: Loading and analyzing a single simulation (ID=0) ---")
         sim_id_to_load = 0
-        rv_data, planet_params = load_simulation_data(sim_id_to_load, run_output_dir)
+        rv_data, planet_params = load_simulation_data(sim_id_to_load, run_output_dir) # Pass the correct run directory
 
         if rv_data is not None:
             logging.info(f"\nInput Parameters for Simulation ID: {sim_id_to_load}\n{planet_params}")
