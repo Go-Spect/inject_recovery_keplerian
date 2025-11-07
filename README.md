@@ -1,10 +1,12 @@
-# inject_recovery_keplerian: Synthetic RV Data Generator
+# RV-Simulator: Synthetic Radial Velocity Data Generator
 
 This project generates synthetic radial velocity (RV) datasets for multi-planet systems. It is designed to create large, configurable batches of simulations for use in injection-recovery tests, model training, or statistical analysis.
 
+The tool is built as an installable command-line package, ensuring reproducibility and ease of use. Each simulation run is stored in a unique, timestamped directory containing the data, configuration, logs, and analysis plots.
+
 ## Project Structure
 
-The project is organized into a simulator package and a main execution script for clarity and maintainability.
+The project is organized as an installable Python package.
 
 ```
 .
@@ -20,24 +22,27 @@ The project is organized into a simulator package and a main execution script fo
     └── utils.py                    # Helper functions (config loading, random sampling)
 ```
 
-## Setup and Dependencies
 
-### 1. Dependencies
-This project requires the following Python libraries. They are listed in the `requirements.txt` file.
-- `numpy`
-- `pandas`
-- `joblib` (for parallel processing)
-- `pyyaml` (for reading the config file)
-- `tqdm` (for progress bars)
-- `matplotlib` (for plotting)
-- `tables` (for HDF5 file support in pandas)
+
+-### 1. Dependencies
+-This project requires the following Python libraries. They are listed in the `requirements.txt` file.
+-- `numpy`
+-- `pandas`
+-- `joblib` (for parallel processing)
+-- `pyyaml` (for reading the config file)
+-- `tqdm` (for progress bars)
+-- `matplotlib` (for plotting)
+-- `tables` (for HDF5 file support in pandas)
 
 ### 2. Installation
-Clone the repository and install the required packages using pip:
+## Installation
+
+Clone the repository and install it as an editable package using `pip`. This is the recommended method as it makes your command-line tool available system-wide while allowing you to continue editing the source code.
+
 ```bash
 git clone https://github.com/Go-Spect/inject_recovery_keplerian
 cd inject_recovery_keplerian
-pip install -r requirements.txt
+pip install -e .
 ```
 
 ## How to Run Simulations

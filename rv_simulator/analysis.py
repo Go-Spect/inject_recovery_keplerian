@@ -1,6 +1,9 @@
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+import logging
 
 def visualize_parameter_distributions(params_csv_path, output_dir):
     """
@@ -16,9 +19,8 @@ def visualize_parameter_distributions(params_csv_path, output_dir):
     """
     try:
         df = pd.read_csv(params_csv_path)
-    except FileNotFoundError:
-        print(f"Error: Parameters file not found at {params_csv_path}")
-        print("Please run the simulations first to generate the file.")
+    except FileNotFoundError as e:
+        logging.error(f"Parameters file not found at {params_csv_path}. Cannot generate distribution plot.", exc_info=True)
         return
 
     fig, axes = plt.subplots(3, 3, figsize=(18, 15))
@@ -72,7 +74,83 @@ def visualize_parameter_distributions(params_csv_path, output_dir):
     plt.tight_layout(rect=[0, 0.03, 1, 0.96])
     plot_path = os.path.join(output_dir, 'parameter_distributions.png')
     plt.savefig(plot_path, dpi=150)
-    print(f"\nParameter distribution plot saved to: {plot_path}")
+    logging.info(f"Parameter distribution plot saved to: {plot_path}")
+    plt.close(fig)
+
+def visualize_corner_plot(params_csv_path, output_dir, corner_params):
+    """
+    Generates and saves a corner plot (pairplot) of specified parameters.
+
+    Args:
+        params_csv_path (str): Path to the batch_planet_params.csv file.
+        output_dir (str): Directory to save the plot image.
+        corner_params (list): A list of column names to include in the plot.
+    """
+    try:
+        df = pd.read_csv(params_csv_path)
+    except FileNotFoundError:
+        logging.error(f"Parameters file for corner plot not found at {params_csv_path}", exc_info=True)
+        return
+
+    if not all(param in df.columns for param in corner_params):
+        logging.error(f"One or more specified corner_params not found in the CSV file.")
+        return
+
+    logging.info("Generating corner plot...")
+    sns.set_theme(style="ticks")
+
+    pair_plot = sns.pairplot(df[corner_params], diag_kind='hist', corner=True)
+    pair_plot.fig.suptitle('Corner Plot of Simulated Planet Parameters', y=1.02, fontsize=20)
+
+    plot_path = os.path.join(output_dir, 'corner_plot.png')
+    plt.savefig(plot_path, dpi=150)
+    logging.info(f"Corner plot saved to: {plot_path}")
+    plt.close(pair_plot.fig)
+
+def visualize_rv_mosaic(n_examples, output_dir):
+    """
+    Generates a mosaic of example RV curves from the simulation batch.
+
+    Args:
+        n_examples (int): The number of example plots to generate.
+        output_dir (str): The directory where simulation results are stored.
+    """
+    logging.info("Generating RV curve mosaic...")
+    # Determine grid size (e.g., 9 examples -> 3x3 grid)
+    grid_size = int(np.sqrt(n_examples))
+    if grid_size**2 != n_examples:
+        logging.warning(f"n_examples ({n_examples}) is not a perfect square. Using the largest possible square grid.")
+        n_examples = grid_size**2
+
+    fig, axes = plt.subplots(grid_size, grid_size, figsize=(18, 18), sharex=True, sharey=True)
+    fig.suptitle('Example RV Curves from Simulations', fontsize=24)
+    axes = axes.ravel()
+
+    for i in range(n_examples):
+        sim_id = i
+        rv_data, planet_params = load_simulation_data(sim_id, output_dir)
+
+        if rv_data is None:
+            axes[i].text(0.5, 0.5, f'Sim ID {sim_id}\nNot Found', ha='center', va='center')
+            axes[i].set_xticks([])
+            axes[i].set_yticks([])
+            continue
+
+        n_planets = len(planet_params)
+        jitter = planet_params['jitter'].iloc[0]
+
+        axes[i].plot(rv_data.index, rv_data['rv_with_noise'], 'k.', markersize=2, alpha=0.6)
+        axes[i].plot(rv_data.index, rv_data['rv_total_signal'], 'r-', lw=1.5)
+        axes[i].set_title(f'Sim ID: {sim_id} ({n_planets} Pl, Jitter: {jitter:.2f} m/s)', fontsize=10)
+
+    # Common labels
+    fig.text(0.5, 0.07, 'Time [days]', ha='center', va='center', fontsize=18)
+    fig.text(0.08, 0.5, 'Radial Velocity [m/s]', ha='center', va='center', rotation='vertical', fontsize=18)
+
+    plt.tight_layout(rect=[0.08, 0.08, 1, 0.95])
+    plot_path = os.path.join(output_dir, 'rv_mosaic_plot.png')
+    plt.savefig(plot_path, dpi=150)
+    logging.info(f"RV mosaic plot saved to: {plot_path}")
     plt.close(fig)
 
 def load_simulation_data(simulation_id, output_dir):
@@ -96,7 +174,7 @@ def load_simulation_data(simulation_id, output_dir):
     try:
         with pd.HDFStore(rv_data_path, mode='r') as store:
             if sim_key not in store.keys():
-                print(f"Error: Simulation ID {simulation_id} ({sim_key}) not found in {rv_data_path}")
+                logging.error(f"Simulation ID {simulation_id} ({sim_key}) not found in {rv_data_path}")
                 return None, None
             rv_data = store[sim_key]
 
@@ -106,8 +184,8 @@ def load_simulation_data(simulation_id, output_dir):
         return rv_data, planet_params
 
     except FileNotFoundError:
-        print(f"Error: Could not find simulation files in '{output_dir}'. Please run the batch simulation first.")
+        logging.error(f"Could not find simulation files in '{output_dir}'. Please run the batch simulation first.", exc_info=True)
         return None, None
     except Exception as e:
-        print(f"An error occurred while loading data: {e}")
+        logging.error(f"An unexpected error occurred while loading data for sim_id {simulation_id}.", exc_info=True)
         return None, None

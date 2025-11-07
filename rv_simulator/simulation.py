@@ -12,20 +12,19 @@ def _generate_single_planet_rv(time, K, P, e, omega, T0):
     return generate_keplerian_rv(time, K, P, e, omega, T0)
 
 
-def multiple_planet_rv(config_path):
+def multiple_planet_rv(config):
     """
     Generates synthetic radial velocity data for a star with multiple planets.
 
     This function simulates a multi-planetary system by:
-    1. Loading parameters from the specified YAML file.
-    2. Randomly determining the number of planets.
-    3. Randomly generating orbital parameters for each planet.
-    4. Calculating the Keplerian RV curve for each planet in parallel.
-    5. Summing the RV contributions to get the total stellar signal.
-    6. Adding Gaussian noise (jitter) to simulate observational uncertainty.
+    1. Randomly determining the number of planets based on the config.
+    2. Randomly generating orbital parameters for each planet.
+    3. Calculating the Keplerian RV curve for each planet in parallel.
+    4. Summing the RV contributions to get the total stellar signal.
+    5. Adding Gaussian noise (jitter) to simulate observational uncertainty.
 
     Args:
-        config_path (str): Path to the YAML configuration file.
+        config (dict): A dictionary containing the simulation parameters.
 
     Returns:
         tuple: A tuple containing:
@@ -35,8 +34,6 @@ def multiple_planet_rv(config_path):
               parameters for each simulated planet.
             - jitter (float): The value of the jitter added to the signal.
     """
-    config = load_config(config_path)
-
     time_span = config.get('time_span', (0, 100))
     time_cadence_sec = config.get('time_cadence_sec', 300)
     n_planets_range = config.get('n_planets_range', (1, 5))
@@ -82,44 +79,44 @@ def multiple_planet_rv(config_path):
 
 def run_batch_simulations(config_path):
     """
-    Runs a batch of simulations based on the config file and saves the results.
+    Runs a batch of simulations in parallel based on the config file.
 
-    This function reads the number of simulations to run from the config,
-    then iteratively generates each simulation. The results are saved to
-    an output directory specified in the config.
+    This function parallelizes the generation of entire, independent simulations.
 
-    - RV data is stored in a single HDF5 file.
-    - All planet parameters are aggregated into a single CSV file.
 
     Args:
         config_path (str): Path to the YAML configuration file.
+
+    Returns:
+        tuple: A tuple containing:
+            - all_rv_data (dict): A dictionary where keys are simulation IDs (e.g., 'sim_00000')
+              and values are the corresponding RV data as pandas DataFrames.
+            - all_planet_params (pd.DataFrame): A single DataFrame containing all planet
+              parameters from all simulations.
     """
     config = load_config(config_path)
     n_simulations = config.get('n_simulations', 1)
-    output_dir = config.get('output_dir', 'simulation_results')
+    n_jobs = config.get('n_jobs', -1)
 
-    os.makedirs(output_dir, exist_ok=True)
+    all_rv_data = {}
+    all_planet_params_list = []
 
-    rv_data_path = os.path.join(output_dir, 'batch_rv_data.h5')
-    params_path = os.path.join(output_dir, 'batch_planet_params.csv')
+    print(f"Generating {n_simulations} simulations in parallel using up to {n_jobs} cores...")
 
-    all_planet_params = []
+    # Parallelize the execution of `multiple_planet_rv`
+    results = Parallel(n_jobs=n_jobs)(
+        delayed(multiple_planet_rv)(config) for _ in tqdm(range(n_simulations), desc="Dispatching Simulations")
+    )
 
-    print(f"Generating {n_simulations} simulations...")
-    print(f"RV data will be saved to: {rv_data_path}")
-    print(f"Planet parameters will be saved to: {params_path}")
+    print("\nProcessing results...")
+    for i, (rv_data, planet_params, jitter) in enumerate(tqdm(results, desc="Aggregating Results")):
+        sim_key = f'sim_{i:05d}'
+        all_rv_data[sim_key] = rv_data
 
-    with pd.HDFStore(rv_data_path, mode='w') as store:
-        for i in tqdm(range(n_simulations), desc="Generating Simulations"):
-            rv_data, planet_params, jitter = multiple_planet_rv(config_path)
+        planet_params['simulation_id'] = i
+        planet_params['jitter'] = jitter
+        all_planet_params_list.append(planet_params)
 
-            store.put(f'sim_{i:05d}', rv_data)
-
-            planet_params['simulation_id'] = i
-            planet_params['jitter'] = jitter
-            all_planet_params.append(planet_params)
-
-    final_params_df = pd.concat(all_planet_params)
-    final_params_df.to_csv(params_path)
-
-    print("\nBatch simulation complete.")
+    final_params_df = pd.concat(all_planet_params_list)
+    print("Batch simulation generation complete.")
+    return all_rv_data, final_params_df
