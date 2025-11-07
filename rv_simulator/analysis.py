@@ -106,8 +106,8 @@ def visualize_corner_plot(params_csv_path, output_dir, corner_params):
     plt.savefig(plot_path, dpi=150)
     logging.info(f"Corner plot saved to: {plot_path}")
     plt.close(pair_plot.fig)
-
-def visualize_rv_mosaic(n_examples, output_dir):
+    
+def visualize_rv_mosaic(n_examples, run_output_dir):
     """
     Generates a mosaic of example RV curves from the simulation batch.
 
@@ -128,7 +128,7 @@ def visualize_rv_mosaic(n_examples, output_dir):
 
     for i in range(n_examples):
         sim_id = i
-        rv_data, planet_params = load_simulation_data(sim_id, output_dir)
+        rv_data, planet_params = load_simulation_data(sim_id, run_output_dir)
 
         if rv_data is None:
             axes[i].text(0.5, 0.5, f'Sim ID {sim_id}\nNot Found', ha='center', va='center')
@@ -148,12 +148,12 @@ def visualize_rv_mosaic(n_examples, output_dir):
     fig.text(0.08, 0.5, 'Radial Velocity [m/s]', ha='center', va='center', rotation='vertical', fontsize=18)
 
     plt.tight_layout(rect=[0.08, 0.08, 1, 0.95])
-    plot_path = os.path.join(output_dir, 'rv_mosaic_plot.png')
+    plot_path = os.path.join(run_output_dir, 'rv_mosaic_plot.png')
     plt.savefig(plot_path, dpi=150)
     logging.info(f"RV mosaic plot saved to: {plot_path}")
     plt.close(fig)
 
-def load_simulation_data(simulation_id, output_dir):
+def load_simulation_data(simulation_id, run_output_dir):
     """
     Loads the data for a single simulation from the batch results.
 
@@ -167,8 +167,8 @@ def load_simulation_data(simulation_id, output_dir):
             - planet_params (pd.DataFrame): The orbital parameters for the simulation.
         Returns (None, None) if the data cannot be found.
     """
-    params_path = os.path.join(output_dir, 'batch_planet_params.csv')
-    rv_data_path = os.path.join(output_dir, 'batch_rv_data.h5')
+    params_path = os.path.join(run_output_dir, 'batch_planet_params.csv')
+    rv_data_path = os.path.join(run_output_dir, 'batch_rv_data.h5')
     sim_key = f'sim_{simulation_id:05d}'
 
     try:
@@ -178,13 +178,13 @@ def load_simulation_data(simulation_id, output_dir):
                 return None, None
             rv_data = store[sim_key]
 
-        all_params = pd.read_csv(params_path, index_col=0)
+        all_params = pd.read_csv(params_path) # Removed index_col=0
         planet_params = all_params[all_params['simulation_id'] == simulation_id]
 
         return rv_data, planet_params
 
     except FileNotFoundError:
-        logging.error(f"Could not find simulation files in '{output_dir}'. Please run the batch simulation first.", exc_info=True)
+        logging.error(f"Could not find simulation files in '{run_output_dir}'. Please run the batch simulation first.", exc_info=True)
         return None, None
     except Exception as e:
         logging.error(f"An unexpected error occurred while loading data for sim_id {simulation_id}.", exc_info=True)

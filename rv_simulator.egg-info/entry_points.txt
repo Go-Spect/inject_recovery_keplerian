@@ -1,0 +1,2 @@
+[console_scripts]
+run-rv-sim = rv_simulator.cli:main
