@@ -25,14 +25,14 @@ The project is organized as an installable Python package.
 
 
 ### 1. Dependencies
--This project requires the following Python libraries. They are listed in the `requirements.txt` file.
--- `numpy`
--- `pandas`
--- `joblib` (for parallel processing)
--- `pyyaml` (for reading the config file)
--- `tqdm` (for progress bars)
--- `matplotlib` (for plotting)
--- `tables` (for HDF5 file support in pandas)
+This project requires the following Python libraries. They are listed in the `requirements.txt` file.
+- `numpy`
+- `pandas`
+- `joblib` (for parallel processing)
+- `pyyaml` (for reading the config file)
+- `tqdm` (for progress bars)
+- `matplotlib` (for plotting)
+- `tables` (for HDF5 file support in pandas)
 
 ### 2. Installation
 ## Installation
