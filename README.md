@@ -24,7 +24,7 @@ The project is organized as an installable Python package.
 
 
 
--### 1. Dependencies
+### 1. Dependencies
 -This project requires the following Python libraries. They are listed in the `requirements.txt` file.
 -- `numpy`
 -- `pandas`
