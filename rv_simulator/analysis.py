@@ -5,6 +5,61 @@ import seaborn as sns
 import numpy as np
 import logging
 
+# --- Nomenclature Standardization for Output Files ---
+
+# Defines the final column names for the ground truth parameters CSV file.
+NAME_MAP_CSV_COLUMNS = {
+    'P': 'period_days',
+    'K': 'semi_amplitude_ms',
+    'e': 'eccentricity',
+    'omega': 'arg_periastron_rad',
+    'T0': 'time_periastron_bjd',
+    'jitter': 'jitter_ms'
+}
+
+# Defines the final column names for the time-series data in the HDF5 file.
+NAME_MAP_H5_COLUMNS = {
+    'rv_with_noise': 'RV [m/s]',
+    'rv_total_signal': 'rv_model_ms'
+}
+
+def save_results(all_rv_data, all_params_df, run_output_dir):
+    """
+    Saves the simulation results to disk with standardized column names.
+
+    This function renames the columns of the parameters DataFrame and each
+    RV data DataFrame according to the ESSP4/ML framework standard before
+    saving them to CSV and HDF5 files.
+
+    Args:
+        all_rv_data (dict): Dictionary of RV data DataFrames.
+        all_params_df (pd.DataFrame): DataFrame of all planet parameters.
+        run_output_dir (str): The directory to save the output files.
+    """
+    rv_data_path = os.path.join(run_output_dir, 'batch_rv_data.h5')
+    params_path = os.path.join(run_output_dir, 'batch_planet_params.csv')
+
+    # --- Save RV Time Series Data (HDF5) ---
+    logging.info(f"Saving standardized RV data to: {rv_data_path}")
+    with pd.HDFStore(rv_data_path, mode='w') as store:
+        for key, df in all_rv_data.items():
+            # Rename columns to the standard format before saving
+            df_renamed = df.rename(columns=NAME_MAP_H5_COLUMNS)
+            store.put(key, df_renamed)
+
+    # --- Save Planet Parameters (CSV) ---
+    logging.info(f"Saving standardized planet parameters to: {params_path}")
+    # Create a copy to avoid SettingWithCopyWarning if the df is used later
+    params_df_renamed = all_params_df.copy()
+    # Rename columns to the standard format before saving
+    params_df_renamed.rename(columns=NAME_MAP_CSV_COLUMNS, inplace=True)
+    # Ensure simulation_id is an integer
+    if 'simulation_id' in params_df_renamed.columns:
+        params_df_renamed['simulation_id'] = params_df_renamed['simulation_id'].astype(int)
+
+    params_df_renamed.to_csv(params_path, index=False)
+    logging.info("All data saved successfully with standard nomenclature.")
+
 def visualize_parameter_distributions(params_csv_path, output_dir):
     """
     Reads aggregated planet parameters and visualizes their distributions.
@@ -33,34 +88,34 @@ def visualize_parameter_distributions(params_csv_path, output_dir):
     axes[0].set_xlabel('Number of Planets')
     axes[0].set_ylabel('Count of Systems')
 
-    df.groupby('simulation_id')['jitter'].first().hist(ax=axes[1], bins=40, color='C1', edgecolor='black')
+    df.groupby('simulation_id')['jitter_ms'].first().hist(ax=axes[1], bins=40, color='C1', edgecolor='black')
     axes[1].set_title('Jitter Distribution')
     axes[1].set_xlabel('Jitter (m/s)')
     axes[1].set_ylabel('Count of Systems')
 
-    df['P'].hist(ax=axes[2], bins=50, color='C2', edgecolor='black')
+    df['period_days'].hist(ax=axes[2], bins=50, color='C2', edgecolor='black')
     axes[2].set_title('Period (P) - Linear Scale')
     axes[2].set_xlabel('Period (days)')
 
-    df['P'].hist(ax=axes[3], bins=50, color='C2', edgecolor='black')
+    df['period_days'].hist(ax=axes[3], bins=50, color='C2', edgecolor='black')
     axes[3].set_xscale('log')
     axes[3].set_title('Period (P) - Log Scale (Jeffreys Prior)')
     axes[3].set_xlabel('Period (days)')
 
-    df['K'].hist(ax=axes[4], bins=50, color='C3', edgecolor='black')
+    df['semi_amplitude_ms'].hist(ax=axes[4], bins=50, color='C3', edgecolor='black')
     axes[4].set_title('Semi-amplitude (K) - Linear Scale')
     axes[4].set_xlabel('K (m/s)')
 
-    df['K'].hist(ax=axes[5], bins=50, color='C3', edgecolor='black')
+    df['semi_amplitude_ms'].hist(ax=axes[5], bins=50, color='C3', edgecolor='black')
     axes[5].set_xscale('log')
     axes[5].set_title('Semi-amplitude (K) - Log Scale (Jeffreys Prior)')
     axes[5].set_xlabel('K (m/s)')
 
-    df['e'].hist(ax=axes[6], bins=40, color='C4', edgecolor='black')
+    df['eccentricity'].hist(ax=axes[6], bins=40, color='C4', edgecolor='black')
     axes[6].set_title('Eccentricity (e) Distribution')
     axes[6].set_xlabel('Eccentricity')
 
-    df['omega'].hist(ax=axes[7], bins=40, color='C5', edgecolor='black')
+    df['arg_periastron_rad'].hist(ax=axes[7], bins=40, color='C5', edgecolor='black')
     axes[7].set_title('Argument of Periastron (ω) Distribution')
     axes[7].set_xlabel('Omega (radians)')
 
@@ -137,10 +192,10 @@ def visualize_rv_mosaic(n_examples, run_output_dir):
             continue
 
         n_planets = len(planet_params)
-        jitter = planet_params['jitter'].iloc[0]
+        jitter = planet_params['jitter_ms'].iloc[0]
 
-        axes[i].plot(rv_data.index, rv_data['rv_with_noise'], 'k.', markersize=2, alpha=0.6)
-        axes[i].plot(rv_data.index, rv_data['rv_total_signal'], 'r-', lw=1.5)
+        axes[i].plot(rv_data.index, rv_data['RV [m/s]'], 'k.', markersize=2, alpha=0.6)
+        axes[i].plot(rv_data.index, rv_data['rv_model_ms'], 'r-', lw=1.5)
         axes[i].set_title(f'Sim ID: {sim_id} ({n_planets} Pl, Jitter: {jitter:.2f} m/s)', fontsize=10)
 
     # Common labels

@@ -1,7 +1,9 @@
 import numpy as np
+import pandas as pd
 import yaml
 import logging
 import os
+import warnings
 
 def generate_random_parameter_value(min_val, max_val, scale='linear', size=None):
     """
@@ -45,6 +47,77 @@ def load_config(config_path):
     except yaml.YAMLError as e:
         raise yaml.YAMLError(f"Error parsing YAML file: {e}") from e
 
+def load_time_array(filepath, column_name=None):
+    """
+    Loads a time array from a file, supporting .npy, .txt, or .csv.
+
+    Args:
+        filepath (str): The path to the file.
+        column_name (str, optional): The name of the column to use if the file
+                                     is a .csv. Defaults to None.
+
+    Returns:
+        np.ndarray: The loaded time array.
+
+    Raises:
+        FileNotFoundError: If the specified file does not exist.
+        ValueError: If the file format is unsupported or if a column_name is
+                    required for a .csv but not provided.
+        IOError: If there is an error reading a .csv file.
+        KeyError: If the specified column_name is not in the .csv file.
+    """
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"Timestamp file not found: {filepath}")
+
+    if filepath.endswith('.npy'):
+        return np.load(filepath)
+    elif filepath.endswith('.txt'):
+        return np.loadtxt(filepath)
+    elif filepath.endswith('.csv'):
+        if column_name is None:
+            raise ValueError("For .csv files, 'timestamps_file_column' is required.")
+        try:
+            df = pd.read_csv(filepath)
+            return df[column_name].values
+        except KeyError:
+            raise KeyError(f"Column '{column_name}' not found in {filepath}. Available columns: {df.columns.tolist()}")
+        except Exception as e:
+            raise IOError(f"Failed to read CSV {filepath}: {e}")
+    else:
+        raise ValueError(f"Unsupported file format: {filepath}. Use .npy, .txt, or .csv.")
+
+# --- Nomenclature Translation Layer (Adapter Pattern) ---
+
+NAME_MAP_CONFIG = {
+    'p_range': 'period_days_range',
+    'p_scale': 'period_days_scale',
+    'k_range': 'semi_amplitude_ms_range',
+    'k_scale': 'semi_amplitude_ms_scale',
+    'e_range': 'eccentricity_range',
+    'e_scale': 'eccentricity_scale',
+    'omega_range': 'arg_periastron_rad_range',
+    'omega_scale': 'arg_periastron_rad_scale',
+    'jitter_range': 'jitter_ms_range',
+    'jitter_scale': 'jitter_ms_scale'
+}
+
+def translate_config(config):
+    """
+    Translates old config keys to new ones in-memory for retro-compatibility.
+    Issues a DeprecationWarning if an old key is used.
+    """
+    for old_key, new_key in NAME_MAP_CONFIG.items():
+        if old_key in config:
+            # Issue a warning to the user
+            warnings.warn(
+                f"Config key '{old_key}' is deprecated and will be removed in a future version. "
+                f"Please use '{new_key}' instead.",
+                DeprecationWarning
+            )
+            # Translate the key
+            config[new_key] = config.pop(old_key)
+    return config
+
 def validate_config(config):
     """
     Validates the configuration dictionary against a schema for required keys,
@@ -58,35 +131,50 @@ def validate_config(config):
         TypeError: If a value has the wrong data type.
         ValueError: If a value fails a constraint check (e.g., is out of range).
     """
+    # --- 1. Translate Legacy Keys (Adapter Pattern) ---
+    config = translate_config(config)
+
+    # --- Schema Definition ---
+    # Note: time_span and time_cadence_sec are now optional at this stage
+    # as they are only required for the 'internal' time generation mode.
+    # Their presence will be validated conditionally later.
     # Define the validation schema for the configuration
     config_schema = {
         'n_simulations': {'type': int, 'validator': lambda v: v > 0},
         'output_dir': {'type': str},
-        'time_span': {'type': list, 'list_len': 2, 'list_elem_type': (int, float), 'validator': lambda v: v[0] < v[1]},
-        'time_cadence_sec': {'type': (int, float), 'validator': lambda v: v > 0},
         'n_jobs': {'type': int},
-        'n_planets_range': {'type': list, 'list_len': 2, 'list_elem_type': int, 'validator': lambda v: 0 < v[0] <= v[1]},
-        'p_range': {'type': list, 'list_len': 2, 'list_elem_type': (int, float), 'validator': lambda v: 0 < v[0] < v[1]},
-        'p_scale': {'type': str, 'validator': lambda v: v in ['linear', 'log']},
-        'k_range': {'type': list, 'list_len': 2, 'list_elem_type': (int, float), 'validator': lambda v: 0 < v[0] < v[1]},
-        'k_scale': {'type': str, 'validator': lambda v: v in ['linear', 'log']},
-        'e_range': {'type': list, 'list_len': 2, 'list_elem_type': (int, float), 'validator': lambda v: 0 <= v[0] < v[1] < 1},
-        'e_scale': {'type': str, 'validator': lambda v: v in ['linear', 'log']},
-        'omega_range': {'type': list, 'list_len': 2, 'list_elem_type': (int, float), 'validator': lambda v: 0 <= v[0] < v[1]},
-        'omega_scale': {'type': str, 'validator': lambda v: v in ['linear', 'log']},
-        'jitter_range': {'type': list, 'list_len': 2, 'list_elem_type': (int, float), 'validator': lambda v: 0 <= v[0] < v[1]},
-        'jitter_scale': {'type': str, 'validator': lambda v: v in ['linear', 'log']},
+        'time_span': {'type': list, 'list_len': 2, 'list_elem_type': (int, float), 'validator': lambda v: v[0] < v[1], 'optional': True},
+        'time_cadence_sec': {'type': (int, float), 'validator': lambda v: v > 0, 'optional': True},
+        'external_timestamps_file': {'type': str, 'optional': True},
+        'timestamps_file_column': {'type': str, 'optional': True},
+        'n_planets_range': {'type': list, 'list_len': 2, 'list_elem_type': int, 'validator': lambda v: 0 <= v[0] <= v[1]}, # No name change
+        'period_days_range': {'type': list, 'list_len': 2, 'list_elem_type': (int, float), 'validator': lambda v: 0 < v[0] < v[1]},
+        'period_days_scale': {'type': str, 'validator': lambda v: v in ['linear', 'log']},
+        'semi_amplitude_ms_range': {'type': list, 'list_len': 2, 'list_elem_type': (int, float), 'validator': lambda v: 0 < v[0] < v[1]},
+        'semi_amplitude_ms_scale': {'type': str, 'validator': lambda v: v in ['linear', 'log']},
+        'eccentricity_range': {'type': list, 'list_len': 2, 'list_elem_type': (int, float), 'validator': lambda v: 0 <= v[0] < v[1] < 1},
+        'eccentricity_scale': {'type': str, 'validator': lambda v: v in ['linear', 'log']},
+        'arg_periastron_rad_range': {'type': list, 'list_len': 2, 'list_elem_type': (int, float), 'validator': lambda v: 0 <= v[0] < v[1]},
+        'arg_periastron_rad_scale': {'type': str, 'validator': lambda v: v in ['linear', 'log']},
+        'apply_jitter': {'type': bool, 'optional': True},
+        'jitter_ms_range': {'type': list, 'list_len': 2, 'list_elem_type': (int, float), 'validator': lambda v: 0 <= v[0] < v[1], 'optional': True},
+        'jitter_ms_scale': {'type': str, 'validator': lambda v: v in ['linear', 'log'], 'optional': True},
         'n_rv_mosaic_examples': {'type': int, 'validator': lambda v: v > 0},
         'corner_plot_params': {'type': list, 'list_elem_type': str}
     }
 
-    # Check for missing keys first
-    missing_keys = set(config_schema.keys()) - set(config.keys())
+    # --- Initial Validation Pass ---
+    # Check for missing required keys
+    required_keys = {k for k, v in config_schema.items() if not v.get('optional')}
+    missing_keys = required_keys - set(config.keys())
     if missing_keys:
         raise ValueError(f"Missing required keys in config file: {sorted(list(missing_keys))}")
 
     # Validate each key against the schema
     for key, rules in config_schema.items():
+        if key not in config:
+            continue # Skip optional keys that are not present
+
         value = config[key]
         
         # 1. Validate Type
@@ -106,8 +194,44 @@ def validate_config(config):
         if 'validator' in rules and not rules['validator'](value):
             raise ValueError(f"Config Error: Value for '{key}' ({value}) is not valid. Please check the constraints.")
 
+    # --- Conditional Validation for Time Generation ---
+    external_file = config.get('external_timestamps_file')
+    time_span = config.get('time_span')
+    time_cadence = config.get('time_cadence_sec')
+
+    if external_file:
+        # EXTERNAL MODE
+        if not os.path.exists(external_file):
+            raise FileNotFoundError(f"Timestamp file not found: {external_file}")
+        
+        if time_span or time_cadence:
+            logging.warning(f"Warning: 'external_timestamps_file' provided. Ignoring 'time_span' and 'time_cadence_sec'.")
+
+        # Extra validation for CSV
+        if external_file.endswith('.csv') and not config.get('timestamps_file_column'):
+            raise ValueError("Using a .csv for timestamps, but 'timestamps_file_column' was not defined in the config.")
+    else:
+        # INTERNAL MODE
+        if not time_span or not time_cadence:
+            raise ValueError("Internal time generation mode: 'time_span' and 'time_cadence_sec' are required when 'external_timestamps_file' is not provided.")
+
+    # --- Conditional Validation for Jitter ---
+    # Default to True for retro-compatibility if the key is missing.
+    apply_jitter = config.get('apply_jitter', True)
+
+    if apply_jitter:
+        # JITTER ON: jitter_range and jitter_scale become mandatory.
+        if config.get('jitter_ms_range') is None or config.get('jitter_ms_scale') is None:
+            raise ValueError("'apply_jitter' is true (or default), but 'jitter_ms_range' or 'jitter_ms_scale' is missing from the config.")
+    else:
+        # JITTER OFF: Warn if the user provided unnecessary keys.
+        if config.get('jitter_ms_range') or config.get('jitter_ms_scale'):
+            logging.warning("Warning: 'apply_jitter' is false. Ignoring 'jitter_ms_range' and 'jitter_ms_scale'.")
+
+
+
     # Specific check for log scale ranges
-    for key in ['p_range', 'k_range']:
+    for key in ['period_days_range', 'semi_amplitude_ms_range']:
         scale_key = key.replace('_range', '_scale')
         if config[scale_key] == 'log' and config[key][0] <= 0:
             raise ValueError(f"Config Error: When '{scale_key}' is 'log', the minimum of '{key}' must be > 0.")

@@ -5,6 +5,7 @@ import argparse
 from datetime import datetime
 from .simulation import run_batch_simulations
 from .analysis import (
+    save_results,
     visualize_parameter_distributions,
     load_simulation_data,
     visualize_corner_plot,
@@ -55,23 +56,19 @@ def main():
         all_rv_data, all_params_df = run_batch_simulations(archived_config_path)
 
         # --- Save all generated data to the unique directory ---
-        rv_data_path = os.path.join(run_output_dir, 'batch_rv_data.h5')
+        # This function now handles the renaming of columns to the standard format.
+        save_results(all_rv_data, all_params_df, run_output_dir)
+
+        # Define paths for the analysis functions
         params_path = os.path.join(run_output_dir, 'batch_planet_params.csv')
-
-        logging.info(f"Saving RV data to: {rv_data_path}")
-        with pd.HDFStore(rv_data_path, mode='w') as store:
-            for key, df in all_rv_data.items():
-                store.put(key, df)
-
-        logging.info(f"Saving planet parameters to: {params_path}")
-        all_params_df.to_csv(params_path, index=False)
-        logging.info("All data saved successfully.")
 
         # --- Post-processing and Verification ---
         logging.info("\n--- Generating Analysis Plots ---")
         visualize_parameter_distributions(params_path, run_output_dir)
 
-        corner_params = config.get('corner_plot_params', ['P', 'K', 'e', 'omega'])
+        # The plotting functions now expect the new, standardized column names.
+        # The default list is updated to reflect the new nomenclature.
+        corner_params = config.get('corner_plot_params', ['period_days', 'semi_amplitude_ms', 'eccentricity', 'arg_periastron_rad'])
         visualize_corner_plot(params_path, run_output_dir, corner_params)
 
         n_mosaic = config.get('n_rv_mosaic_examples', 9)
@@ -87,8 +84,8 @@ def main():
 
             plt.figure(figsize=(15, 6))
             plt.title(f"RV Data for Simulation ID: {sim_id_to_load}")
-            plt.plot(rv_data.index, rv_data['rv_with_noise'], 'k.', alpha=0.5, label='RV with Noise')
-            plt.plot(rv_data.index, rv_data['rv_total_signal'], 'r-', lw=2, label='Total Keplerian Signal')
+            plt.plot(rv_data.index, rv_data['RV [m/s]'], 'k.', alpha=0.5, label='RV with Noise')
+            plt.plot(rv_data.index, rv_data['rv_model_ms'], 'r-', lw=2, label='Total Keplerian Signal')
             plt.xlabel("Time [days]")
             plt.ylabel("Radial Velocity [m/s]")
             plt.legend()
